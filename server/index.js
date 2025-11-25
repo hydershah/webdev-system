@@ -25,16 +25,41 @@ const distPath = path.join(__dirname, '../dist')
 app.use(express.static(distPath))
 
 // PostgreSQL Connection Test
+let dbConnected = false
 sequelize.authenticate()
-  .then(() => console.log('✅ Connected to PostgreSQL (Railway)'))
-  .catch((err) => console.error('❌ PostgreSQL connection error:', err))
+  .then(() => {
+    console.log('✅ Connected to PostgreSQL (Railway)')
+    dbConnected = true
+  })
+  .catch((err) => {
+    console.error('❌ PostgreSQL connection error:', err.message)
+    console.error('⚠️  Server will run but database operations will fail')
+  })
 
 // API Routes
 app.use('/api/questionnaire', questionnaireRoutes)
 
 // Health check endpoint
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' })
+app.get('/api/health', async (_req, res) => {
+  const health = {
+    status: 'ok',
+    message: 'Server is running',
+    database: dbConnected ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  }
+
+  // Try to ping database
+  if (dbConnected) {
+    try {
+      await sequelize.authenticate()
+      health.database = 'connected'
+    } catch (err) {
+      health.database = 'error'
+      health.dbError = err.message
+    }
+  }
+
+  res.json(health)
 })
 
 // Serve React app for all other routes (must be last)
