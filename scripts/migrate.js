@@ -5,9 +5,10 @@ async function runMigration() {
   try {
     console.log('🔄 Connecting to PostgreSQL...')
 
-    if (!process.env.DATABASE_URL) {
-      console.error('❌ DATABASE_URL environment variable is not set')
-      process.exit(1)
+    if (!process.env.DATABASE_URL || !sequelize) {
+      console.warn('⚠️  DATABASE_URL not set - skipping migration')
+      console.log('Server will start without database')
+      process.exit(0)
     }
 
     await sequelize.authenticate()

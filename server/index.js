@@ -26,15 +26,19 @@ app.use(express.static(distPath))
 
 // PostgreSQL Connection Test
 let dbConnected = false
-sequelize.authenticate()
-  .then(() => {
-    console.log('✅ Connected to PostgreSQL (Railway)')
-    dbConnected = true
-  })
-  .catch((err) => {
-    console.error('❌ PostgreSQL connection error:', err.message)
-    console.error('⚠️  Server will run but database operations will fail')
-  })
+if (sequelize) {
+  sequelize.authenticate()
+    .then(() => {
+      console.log('✅ Connected to PostgreSQL (Railway)')
+      dbConnected = true
+    })
+    .catch((err) => {
+      console.error('❌ PostgreSQL connection error:', err.message)
+      console.error('⚠️  Server will run but database operations will fail')
+    })
+} else {
+  console.warn('⚠️  Database not configured - server running without database')
+}
 
 // API Routes
 app.use('/api/questionnaire', questionnaireRoutes)
@@ -44,12 +48,12 @@ app.get('/api/health', async (_req, res) => {
   const health = {
     status: 'ok',
     message: 'Server is running',
-    database: dbConnected ? 'connected' : 'disconnected',
+    database: sequelize ? (dbConnected ? 'connected' : 'disconnected') : 'not configured',
     timestamp: new Date().toISOString()
   }
 
   // Try to ping database
-  if (dbConnected) {
+  if (sequelize && dbConnected) {
     try {
       await sequelize.authenticate()
       health.database = 'connected'

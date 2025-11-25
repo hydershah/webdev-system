@@ -1,7 +1,10 @@
 import { DataTypes } from 'sequelize'
 import sequelize from '../server/database.js'
 
-const Questionnaire = sequelize.define('Questionnaire', {
+let Questionnaire = null
+
+if (sequelize) {
+  Questionnaire = sequelize.define('Questionnaire', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -114,8 +117,9 @@ const Questionnaire = sequelize.define('Questionnaire', {
     defaultValue: 'new'
   }
 }, {
-  tableName: 'questionnaires',
-  timestamps: true
-})
+    tableName: 'questionnaires',
+    timestamps: true
+  })
+}
 
 export default Questionnaire
