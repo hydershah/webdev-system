@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,7 +13,10 @@ import {
   COLOR_SCHEMES,
   LAYOUT_STYLES,
   TYPOGRAPHY_STYLES,
-  BUSINESS_GOALS
+  BUSINESS_GOALS,
+  PRIMARY_CTAS,
+  TECH_STACKS,
+  ANALYTICS_OPTIONS
 } from '../data/questionnaireOptions'
 
 const TOTAL_STEPS = FORM_STEPS.length
@@ -24,6 +27,7 @@ export default function QuestionnaireForm() {
   const [industrySearch, setIndustrySearch] = useState('')
   const [showIndustryDropdown, setShowIndustryDropdown] = useState(false)
   const [referenceWebsites, setReferenceWebsites] = useState([{ url: '', whatYouLike: '' }])
+  const [dislikedWebsites, setDislikedWebsites] = useState([{ url: '', whatYouDislike: '' }])
 
   const {
     register,
@@ -32,20 +36,30 @@ export default function QuestionnaireForm() {
     setValue,
     getValues,
     formState: { errors },
-    trigger
+    trigger,
+    clearErrors
   } = useForm({
     resolver: zodResolver(questionnaireSchema),
-    mode: 'onChange',
+    mode: 'all',
     defaultValues: {
+      fullName: '',
+      email: '',
+      companyName: '',
+      phoneNumber: '',
       mockupCount: 2,
       referenceWebsites: [],
+      dislikedWebsites: [],
       commonPages: [],
       features: [],
       integrations: [],
       designKeywords: [],
       avoidKeywords: [],
       businessGoals: [],
+      primaryCTAs: [],
       competitors: [],
+      competitorsToOutrank: [],
+      targetKeywords: [],
+      analyticsNeeds: [],
       languages: []
     }
   })
@@ -57,20 +71,56 @@ export default function QuestionnaireForm() {
   const selectedIntegrations = watch('integrations') || []
   const selectedKeywords = watch('designKeywords') || []
   const selectedGoals = watch('businessGoals') || []
+  const selectedCTAs = watch('primaryCTAs') || []
+  const selectedAnalytics = watch('analyticsNeeds') || []
+  const hasHardDeadline = watch('hasHardDeadline')
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
     // Include reference websites
     data.referenceWebsites = referenceWebsites.filter(r => r.url)
-    console.log('Complete Form Data:', data)
-    setIsSubmitted(true)
+    data.dislikedWebsites = dislikedWebsites.filter(r => r.url)
+
+    try {
+      const response = await fetch('http://localhost:3001/api/questionnaire/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        console.log('✅ Questionnaire saved successfully:', result.data)
+        setIsSubmitted(true)
+      } else {
+        console.error('❌ Failed to save questionnaire:', result.message)
+        alert('Failed to submit questionnaire. Please try again.')
+      }
+    } catch (error) {
+      console.error('❌ Error submitting questionnaire:', error)
+      alert('Network error. Please check if the server is running and try again.')
+    }
   }
 
   const nextStep = async () => {
     const stepConfig = FORM_STEPS[currentStep - 1]
     const fieldsToValidate = stepConfig.required || []
 
-    const isValid = fieldsToValidate.length === 0 || await trigger(fieldsToValidate)
-    if (isValid && currentStep < TOTAL_STEPS) {
+    // If no required fields, just proceed
+    if (fieldsToValidate.length === 0) {
+      setCurrentStep(currentStep + 1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    // Validate required fields
+    const isValid = await trigger(fieldsToValidate)
+
+    if (isValid) {
+      // Clear any lingering errors for these fields before proceeding
+      clearErrors(fieldsToValidate)
       setCurrentStep(currentStep + 1)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -111,6 +161,22 @@ export default function QuestionnaireForm() {
   const removeReferenceWebsite = (index) => {
     if (referenceWebsites.length > 1) {
       setReferenceWebsites(referenceWebsites.filter((_, i) => i !== index))
+    }
+  }
+
+  const addDislikedWebsite = () => {
+    setDislikedWebsites([...dislikedWebsites, { url: '', whatYouDislike: '' }])
+  }
+
+  const updateDislikedWebsite = (index, field, value) => {
+    const updated = [...dislikedWebsites]
+    updated[index][field] = value
+    setDislikedWebsites(updated)
+  }
+
+  const removeDislikedWebsite = (index) => {
+    if (dislikedWebsites.length > 1) {
+      setDislikedWebsites(dislikedWebsites.filter((_, i) => i !== index))
     }
   }
 
@@ -246,18 +312,11 @@ export default function QuestionnaireForm() {
                     placeholder="Acme Inc"
                   />
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <InputField
-                      label="Phone Number"
-                      {...register('phoneNumber')}
-                      placeholder="+1 (555) 000-0000"
-                    />
-                    <InputField
-                      label="Your Position/Title"
-                      {...register('position')}
-                      placeholder="CEO, Marketing Manager, etc."
-                    />
-                  </div>
+                  <InputField
+                    label="Phone Number (Optional)"
+                    {...register('phoneNumber')}
+                    placeholder="+1 (555) 000-0000"
+                  />
                 </div>
               </StepWrapper>
             )}
@@ -332,6 +391,13 @@ export default function QuestionnaireForm() {
                     rows={2}
                   />
 
+                  <TextAreaField
+                    label="What problem does this website solve for users?"
+                    {...register('problemSolved')}
+                    placeholder="What pain points or needs will this website address for your visitors?"
+                    rows={2}
+                  />
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       What do you want to achieve with this website?
@@ -344,6 +410,52 @@ export default function QuestionnaireForm() {
                           checked={selectedGoals.includes(goal.id)}
                           onChange={() => toggleArrayValue('businessGoals', goal.id)}
                         />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Top 3 actions you want visitors to take
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PRIMARY_CTAS.map((cta) => (
+                        <CheckboxCard
+                          key={cta.id}
+                          label={cta.label}
+                          checked={selectedCTAs.includes(cta.id)}
+                          onChange={() => toggleArrayValue('primaryCTAs', cta.id)}
+                        />
+                      ))}
+                    </div>
+                    {selectedCTAs.length > 3 && (
+                      <p className="mt-2 text-sm text-amber-600">Consider focusing on your top 3 most important actions</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      How technical is your target audience?
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { id: 'non-technical', label: 'Non-technical', desc: 'General public' },
+                        { id: 'somewhat-technical', label: 'Somewhat', desc: 'Basic tech skills' },
+                        { id: 'technical', label: 'Technical', desc: 'Developers, IT pros' },
+                        { id: 'mixed', label: 'Mixed', desc: 'Varies widely' },
+                      ].map((option) => (
+                        <label key={option.id} className="relative cursor-pointer">
+                          <input
+                            {...register('targetAudienceTechLevel')}
+                            type="radio"
+                            value={option.id}
+                            className="peer sr-only"
+                          />
+                          <div className="p-3 rounded-xl border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
+                            <span className="text-sm font-medium text-gray-900 block">{option.label}</span>
+                            <span className="text-xs text-gray-500">{option.desc}</span>
+                          </div>
+                        </label>
                       ))}
                     </div>
                   </div>
@@ -432,6 +544,59 @@ export default function QuestionnaireForm() {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Disliked Websites */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Websites You Dislike
+                    </label>
+                    <p className="text-sm text-gray-500 mb-4">
+                      What websites do you NOT want yours to look like? This helps us avoid directions you don't want.
+                    </p>
+
+                    {dislikedWebsites.map((ref, index) => (
+                      <div key={index} className="mb-4 p-4 bg-red-50 rounded-xl border border-red-100">
+                        <div className="flex gap-2 mb-2">
+                          <input
+                            type="url"
+                            className="input-field flex-1"
+                            placeholder="https://example.com"
+                            value={ref.url}
+                            onChange={(e) => updateDislikedWebsite(index, 'url', e.target.value)}
+                          />
+                          {dislikedWebsites.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeDislikedWebsite(index)}
+                              className="p-2 text-gray-400 hover:text-red-500"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          className="input-field"
+                          placeholder="What don't you like about it? (layout, colors, too busy, etc.)"
+                          value={ref.whatYouDislike}
+                          onChange={(e) => updateDislikedWebsite(index, 'whatYouDislike', e.target.value)}
+                        />
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={addDislikedWebsite}
+                      className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add another site to avoid
+                    </button>
                   </div>
 
                   <TextAreaField
@@ -578,6 +743,34 @@ export default function QuestionnaireForm() {
                           <div className="p-4 rounded-xl border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
                             <span className="text-sm font-medium text-gray-900 block">{level.label}</span>
                             <span className="text-xs text-gray-500">{level.desc}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Theme Mode */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Theme Mode
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { id: 'light-only', label: 'Light Only', desc: 'Classic bright look' },
+                        { id: 'dark-only', label: 'Dark Only', desc: 'Sleek dark interface' },
+                        { id: 'both-toggle', label: 'Both (Toggle)', desc: 'User can switch' },
+                        { id: 'system-preference', label: 'Auto', desc: 'Match system setting' },
+                      ].map((mode) => (
+                        <label key={mode.id} className="relative cursor-pointer">
+                          <input
+                            {...register('themeMode')}
+                            type="radio"
+                            value={mode.id}
+                            className="peer sr-only"
+                          />
+                          <div className="p-4 rounded-xl border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
+                            <span className="text-sm font-medium text-gray-900 block">{mode.label}</span>
+                            <span className="text-xs text-gray-500">{mode.desc}</span>
                           </div>
                         </label>
                       ))}
@@ -901,14 +1094,94 @@ export default function QuestionnaireForm() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  {/* Tech Stack */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Tech stack preference
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {TECH_STACKS.map((stack) => (
+                        <label key={stack.id} className="relative cursor-pointer">
+                          <input
+                            {...register('techStackPreference')}
+                            type="radio"
+                            value={stack.id}
+                            className="peer sr-only"
+                          />
+                          <div className="p-3 rounded-xl border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
+                            <span className="text-sm font-medium text-gray-900 block">{stack.label}</span>
+                            <span className="text-xs text-gray-500">{stack.desc}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Expected Traffic */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Expected monthly visitors
+                    </label>
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                      {[
+                        { id: 'under-1k', label: '<1K' },
+                        { id: '1k-10k', label: '1K-10K' },
+                        { id: '10k-50k', label: '10K-50K' },
+                        { id: '50k-100k', label: '50K-100K' },
+                        { id: '100k-plus', label: '100K+' },
+                        { id: 'dont-know', label: "Don't know" },
+                      ].map((option) => (
+                        <label key={option.id} className="relative cursor-pointer">
+                          <input
+                            {...register('expectedMonthlyVisitors')}
+                            type="radio"
+                            value={option.id}
+                            className="peer sr-only"
+                          />
+                          <div className="p-2 rounded-lg border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
+                            <span className="text-sm font-medium text-gray-900">{option.label}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mobile vs Desktop */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Mobile or desktop priority?
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { id: 'mobile-first', label: 'Mobile-First', desc: 'Most users on phones' },
+                        { id: 'desktop-first', label: 'Desktop-First', desc: 'Most users on computers' },
+                        { id: 'equal-priority', label: 'Equal', desc: 'Both equally important' },
+                        { id: 'dont-know', label: "Don't know", desc: 'Help me decide' },
+                      ].map((option) => (
+                        <label key={option.id} className="relative cursor-pointer">
+                          <input
+                            {...register('mobileVsDesktop')}
+                            type="radio"
+                            value={option.id}
+                            className="peer sr-only"
+                          />
+                          <div className="p-3 rounded-xl border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
+                            <span className="text-sm font-medium text-gray-900 block">{option.label}</span>
+                            <span className="text-xs text-gray-500">{option.desc}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         {...register('needsMultiLanguage')}
                         className="w-5 h-5 rounded border-gray-300"
                       />
-                      <span className="text-sm text-gray-700">Need multiple languages?</span>
+                      <span className="text-sm text-gray-700">Multiple languages</span>
                     </label>
 
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -917,8 +1190,79 @@ export default function QuestionnaireForm() {
                         {...register('accessibilityRequirements')}
                         className="w-5 h-5 rounded border-gray-300"
                       />
-                      <span className="text-sm text-gray-700">Accessibility requirements (WCAG)?</span>
+                      <span className="text-sm text-gray-700">Accessibility (WCAG)</span>
                     </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register('needsOffline')}
+                        className="w-5 h-5 rounded border-gray-300"
+                      />
+                      <span className="text-sm text-gray-700">Works offline (PWA)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register('needsCoreWebVitals')}
+                        className="w-5 h-5 rounded border-gray-300"
+                      />
+                      <span className="text-sm text-gray-700">Core Web Vitals compliance</span>
+                    </label>
+                  </div>
+
+                  <TextAreaField
+                    label="API requirements (if any)"
+                    {...register('apiRequirements')}
+                    placeholder="Any internal or external APIs needed? (e.g., payment APIs, third-party data, custom backend)"
+                    rows={2}
+                  />
+
+                  {/* SEO Section */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">SEO & Performance</h3>
+
+                    <div className="space-y-4">
+                      <InputField
+                        label="Target keywords (comma-separated)"
+                        {...register('targetKeywords')}
+                        placeholder="e.g., web design agency, custom websites, react development"
+                      />
+
+                      <InputField
+                        label="Competitor websites to outrank"
+                        {...register('competitorsToOutrank')}
+                        placeholder="e.g., competitor1.com, competitor2.com"
+                      />
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Performance expectations
+                        </label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {[
+                            { id: 'standard', label: 'Standard', desc: '3-5s load time' },
+                            { id: 'fast', label: 'Fast', desc: '1-3s load time' },
+                            { id: 'blazing-fast', label: 'Blazing Fast', desc: '<1s load time' },
+                            { id: 'dont-know', label: "Don't know", desc: 'You recommend' },
+                          ].map((option) => (
+                            <label key={option.id} className="relative cursor-pointer">
+                              <input
+                                {...register('performanceExpectations')}
+                                type="radio"
+                                value={option.id}
+                                className="peer sr-only"
+                              />
+                              <div className="p-3 rounded-xl border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
+                                <span className="text-sm font-medium text-gray-900 block">{option.label}</span>
+                                <span className="text-xs text-gray-500">{option.desc}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </StepWrapper>
@@ -994,6 +1338,92 @@ export default function QuestionnaireForm() {
                           </div>
                         </label>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Launch & Maintenance Section */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Launch & Beyond</h3>
+
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center gap-6">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            {...register('hasHardDeadline')}
+                            className="w-5 h-5 rounded border-gray-300"
+                          />
+                          <span className="text-sm text-gray-700">I have a hard deadline</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            {...register('phasedLaunchOk')}
+                            className="w-5 h-5 rounded border-gray-300"
+                          />
+                          <span className="text-sm text-gray-700">Phased launch is OK</span>
+                        </label>
+                      </div>
+
+                      {hasHardDeadline && (
+                        <InputField
+                          label="Deadline date"
+                          type="date"
+                          {...register('deadlineDate')}
+                        />
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Post-launch maintenance
+                        </label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {[
+                            { id: 'self-maintain', label: 'Self-maintain', desc: 'I can handle updates' },
+                            { id: 'need-ongoing-support', label: 'Need support', desc: 'Help with updates' },
+                            { id: 'monthly-retainer', label: 'Monthly retainer', desc: 'Ongoing partnership' },
+                            { id: 'as-needed', label: 'As needed', desc: 'Call when needed' },
+                            { id: 'discuss', label: 'Discuss', desc: 'Let\'s talk about it' },
+                          ].map((option) => (
+                            <label key={option.id} className="relative cursor-pointer">
+                              <input
+                                {...register('maintenancePlan')}
+                                type="radio"
+                                value={option.id}
+                                className="peer sr-only"
+                              />
+                              <div className="p-3 rounded-xl border-2 border-gray-200 peer-checked:border-gray-900 peer-checked:bg-gray-50 hover:border-gray-300 transition-all text-center">
+                                <span className="text-sm font-medium text-gray-900 block">{option.label}</span>
+                                <span className="text-xs text-gray-500">{option.desc}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Analytics & reporting needs
+                        </label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {ANALYTICS_OPTIONS.map((option) => (
+                            <CheckboxCard
+                              key={option.id}
+                              label={option.label}
+                              checked={selectedAnalytics.includes(option.id)}
+                              onChange={() => toggleArrayValue('analyticsNeeds', option.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <TextAreaField
+                        label="Future features planned?"
+                        {...register('futureFeatures')}
+                        placeholder="Any features you're planning to add later? (helps with architecture decisions)"
+                        rows={2}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1140,28 +1570,30 @@ function StepHeader({ title, subtitle }) {
   )
 }
 
-function InputField({ label, required, error, ...props }) {
+const InputField = forwardRef(({ label, required, error, ...props }, ref) => {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
+        ref={ref}
         className="input-field"
         {...props}
       />
       {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
     </div>
   )
-}
+})
 
-function TextAreaField({ label, required, error, rows = 4, ...props }) {
+const TextAreaField = forwardRef(({ label, required, error, rows = 4, ...props }, ref) => {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <textarea
+        ref={ref}
         className="input-field resize-none"
         rows={rows}
         {...props}
@@ -1169,7 +1601,7 @@ function TextAreaField({ label, required, error, rows = 4, ...props }) {
       {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
     </div>
   )
-}
+})
 
 function CheckboxCard({ label, description, checked, onChange }) {
   return (

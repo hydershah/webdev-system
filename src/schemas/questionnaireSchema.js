@@ -334,7 +334,7 @@ export const FORM_STEPS = [
     title: 'Contact Info',
     subtitle: 'How can we reach you?',
     icon: 'user',
-    fields: ['fullName', 'email', 'companyName', 'phoneNumber', 'position'],
+    fields: ['fullName', 'email', 'companyName', 'phoneNumber'],
     required: ['fullName', 'email', 'companyName']
   },
   {
