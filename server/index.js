@@ -1,10 +1,15 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import sequelize from './database.js'
 import questionnaireRoutes from './routes/questionnaire.js'
 
 dotenv.config()
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -14,28 +19,25 @@ app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
+// Serve static files from React build
+app.use(express.static(path.join(__dirname, '../dist')))
+
 // PostgreSQL Connection Test
 sequelize.authenticate()
   .then(() => console.log('✅ Connected to PostgreSQL (Railway)'))
   .catch((err) => console.error('❌ PostgreSQL connection error:', err))
 
-// Routes
+// API Routes
 app.use('/api/questionnaire', questionnaireRoutes)
-
-// Root endpoint
-app.get('/', (_req, res) => {
-  res.json({
-    message: 'Webdev System API',
-    endpoints: {
-      health: '/api/health',
-      questionnaire: '/api/questionnaire'
-    }
-  })
-})
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Server is running' })
+})
+
+// Serve React app for all other routes (must be last)
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'))
 })
 
 app.listen(PORT, () => {

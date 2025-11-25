@@ -81,7 +81,8 @@ export default function QuestionnaireForm() {
     data.dislikedWebsites = dislikedWebsites.filter(r => r.url)
 
     try {
-      const response = await fetch('http://localhost:3001/api/questionnaire/submit', {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/questionnaire/submit'
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
