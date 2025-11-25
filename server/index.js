@@ -22,8 +22,19 @@ sequelize.authenticate()
 // Routes
 app.use('/api/questionnaire', questionnaireRoutes)
 
+// Root endpoint
+app.get('/', (_req, res) => {
+  res.json({
+    message: 'Webdev System API',
+    endpoints: {
+      health: '/api/health',
+      questionnaire: '/api/questionnaire'
+    }
+  })
+})
+
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Server is running' })
 })
 
