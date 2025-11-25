@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import sequelize from './database.js'
 import questionnaireRoutes from './routes/questionnaire.js'
@@ -22,7 +23,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Serve static files from React build (if it exists)
 const distPath = path.join(__dirname, '../dist')
-app.use(express.static(distPath))
+console.log('📁 Static files path:', distPath)
+
+// Check if dist folder exists
+if (fs.existsSync(distPath)) {
+  console.log('✅ dist folder found')
+  app.use(express.static(distPath))
+} else {
+  console.warn('⚠️  dist folder not found - frontend may not be available')
+}
 
 // PostgreSQL Connection Test
 let dbConnected = false
