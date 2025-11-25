@@ -36,7 +36,7 @@ app.get('/api/health', (_req, res) => {
 })
 
 // Serve React app for all other routes (must be last)
-app.get('*', (_req, res) => {
+app.use((_req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'))
 })
 
